@@ -2,8 +2,16 @@ import tensorflow as tf
 import numpy as np
 def train(x,y):
 
+
     # Create a vocabulary and tokenization
-    tokenizer = tf.keras.layers.TextVectorization()
+    def custom_standardization(input_data):
+        lowercase = tf.strings.lower(input_data)
+        return lowercase
+
+    tokenizer = tf.keras.layers.TextVectorization(
+        standardize=custom_standardization
+    )
+
     tokenizer.adapt(x + y)
     vocab_size = len(tokenizer.get_vocabulary())
 
@@ -28,7 +36,7 @@ def train(x,y):
     model.compile(optimizer='adam', loss='sparse_categorical_crossentropy')
 
     # Train the model
-    model.fit(question_tokens, answer_tokens, epochs=1000, verbose=False)
+    model.fit(question_tokens, answer_tokens, epochs=100, verbose=False)
 
     def predict(test_question):
         test_question_tokens = tokenizer(test_question)
