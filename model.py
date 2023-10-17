@@ -1,55 +1,41 @@
 import tensorflow as tf
 import numpy as np
+def train(x,y):
 
-def train(trainingData):
-    
-    combined_text = " ".join([x+"\0" for x in trainingData])
+    # Create a vocabulary and tokenization
+    tokenizer = tf.keras.layers.TextVectorization()
+    tokenizer.adapt(x + y)
+    vocab_size = len(tokenizer.get_vocabulary())
 
-    # Create a set of unique characters from the combined text
-    chars = sorted(set(combined_text))
-    char_to_index = {char: i for i, char in enumerate(chars)}
-    index_to_char = {i: char for i, char in enumerate(chars)}
-    data = [char_to_index[char] for char in combined_text]
+    # Tokenize the x and y
+    question_tokens = tokenizer(x)
+    answer_tokens = tokenizer(y)
 
+    # Pad or truncate sequences to ensure equal length
+    max_seq_length = max(len(question_tokens[0]), len(answer_tokens[0]))
+    question_tokens = tf.keras.preprocessing.sequence.pad_sequences(question_tokens, maxlen=max_seq_length, padding='post', truncating='post')
+    answer_tokens = tf.keras.preprocessing.sequence.pad_sequences(answer_tokens, maxlen=max_seq_length, padding='post', truncating='post')
 
-    # Create training sequences with a stop character
-    seq_length = 3
-    sequences = []
-    for i in range(len(data) - seq_length):
-        sequences.append(data[i:i + seq_length])
-
-    # Prepare the data
-    x = np.array(sequences)
-    y = np.array(data[seq_length:])
-
-    # Define the model
+    # Create a simple RNN model
     model = tf.keras.Sequential([
-        tf.keras.layers.Embedding(len(chars), 8),
-        tf.keras.layers.SimpleRNN(32),
-        tf.keras.layers.Dense(256, activation='relu'),
-        tf.keras.layers.Dense(len(chars), activation='softmax')
+        tf.keras.layers.Embedding(vocab_size, 64),
+        tf.keras.layers.SimpleRNN(64, return_sequences=True),
+        tf.keras.layers.Dense(128, activation='relu'),
+        tf.keras.layers.Dense(vocab_size, activation='softmax')
     ])
 
     # Compile the model
     model.compile(optimizer='adam', loss='sparse_categorical_crossentropy')
 
     # Train the model
-    model.fit(x, y, epochs=1000, verbose=False)
+    model.fit(question_tokens, answer_tokens, epochs=1000, verbose=False)
 
-
-    def predict(seed):
-        # Generate text using the trained model with a stop character
-        seed_text = seed
-        generated_text = seed_text
-        stop_character = '\0'  # Define the stop character
-        num_chars_to_generate = 20
-
-        while generated_text[-1] != stop_character and len(generated_text) < num_chars_to_generate:  # You can specify a maximum length as well
-            seed_sequence = [char_to_index[char] for char in generated_text[-seq_length:]]
-            next_char_index = np.argmax(model.predict(np.array(seed_sequence).reshape(1, -1), verbose=False))
-            next_char = index_to_char[next_char_index]
-            generated_text += next_char
-
-        return generated_text
+    def predict(test_question):
+        test_question_tokens = tokenizer(test_question)
+        test_question_tokens = tf.keras.preprocessing.sequence.pad_sequences(test_question_tokens, maxlen=max_seq_length, padding='post', truncating='post')
+        predicted_answers_tokens = model.predict(test_question_tokens, verbose=False)
+        predicted_answers_index = np.argmax(predicted_answers_tokens, axis=-1)  # Use axis=-1 to get the indices along the last dimension
+        # Convert the predicted answer indices back to words
+        return [" ".join(tokenizer.get_vocabulary()[index] for index in predicted_answer_index if index > 0) for predicted_answer_index in predicted_answers_index]
     
     return predict
